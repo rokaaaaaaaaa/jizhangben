@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>小账本</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%92%3C/text%3E%3C/svg%3E">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pink: { 50: '#fdf2f8', 100: '#fce7f3', 200: '#fbcfe8', 300: '#f9a8d4', 400: '#f472b6', 500: '#ec4899', 600: '#db2777' },
+            purple: { 50: '#faf5ff', 100: '#f3e8ff', 200: '#e9d5ff', 300: '#d8b4fe', 400: '#c084fc', 500: '#a855f7' },
+            rose: { 400: '#fb7185', 500: '#f43f5e' },
+            emerald: { 400: '#34d399', 500: '#10b981' },
+            teal: { 400: '#2dd4bf', 500: '#14b8a6' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; }
+    .pb-safe { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+    ::-webkit-scrollbar { width: 0; height: 0; }
+    input, textarea, button, select { font-family: inherit; outline: none; border: none; }
+    button { cursor: pointer; background: none; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .animate-slide-up { animation: slideUp 0.3s ease-out; }
+    @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .animate-scale-in { animation: scaleIn 0.2s ease-out; }
+    .crop-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; display: flex; align-items: center; justify-content: center; }
+    .crop-container { position: relative; width: 90vw; height: 60vh; background: #333; overflow: hidden; }
+    .crop-image { position: absolute; max-width: none; max-height: none; cursor: grab; transform-origin: center center; left: 50%; top: 50%; margin-left: 0; margin-top: 0; }
+    .crop-image:active { cursor: grabbing; }
+    .crop-frame { position: absolute; border: 2px dashed white; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); pointer-events: none; }
+    .page { display: none; }
+    .page.active { display: block; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-pink-50 via-white to-purple-50 min-h-screen">
+  <!-- 首页 -->
+  <div id="homePage" class="page active min-h-screen pb-24">
+    <!-- 顶部背景 -->
+    <div class="relative w-full aspect-[16/9] max-h-[240px] overflow-hidden">
+      <img id="headerBg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='225'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f472b6'/%3E%3Cstop offset='100%25' stop-color='%23c084fc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='400' height='225' fill='url(%23g)'/%3E%3C/svg%3E" alt="header" class="w-full h-full object-cover">
+      <div class="absolute inset-0 flex flex-col items-center justify-start pt-5">
+        <div class="w-20 h-20 rounded-full bg-white p-1 shadow-lg mb-3">
+          <img id="avatarImg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23fce7f3'/%3E%3Ctext x='50' y='65' text-anchor='middle' font-size='50'%3E%F0%9F%90%B1%3C/text%3E%3C/svg%3E" alt="icon" class="w-full h-full rounded-full object-cover">
+        </div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xl">✨</span>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">我的小账本</h1>
+          <span class="text-xl">✨</span>
+        </div>
+        <p class="text-xs text-pink-600">记录每一笔收支</p>
+      </div>
+    </div>
+
+    <!-- 余额卡片 -->
+    <div class="px-5 -mt-4">
+      <div class="relative bg-gradient-to-br from-pink-400 via-rose-400 to-pink-500 rounded-3xl p-6 shadow-lg overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+        <div class="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+        <button onclick="openSettings()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors z-10">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </button>
+        <div class="relative">
+          <p class="text-pink-100 text-sm mb-1 flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            当前余额
+          </p>
+          <p id="balanceText" class="text-4xl font-bold text-white mb-4">¥0.00</p>
+          <div class="flex gap-4">
+            <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2">
+              <svg class="w-4 h-4 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+              <div><p class="text-xs text-pink-100">收入</p><p id="monthIncome" class="text-sm font-semibold text-white">¥0.00</p></div>
+            </div>
+            <div class="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2">
+              <svg class="w-4 h-4 text-rose-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg>
+              <div><p class="text-xs text-pink-100">支出</p><p id="monthExpense" class="text-sm font-semibold text-white">¥0.00</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 快捷按钮 -->
+    <div class="px-5 mt-5">
+      <div class="flex gap-3">
+        <button onclick="openForm('expense')" class="flex-1 bg-white rounded-2xl p-4 shadow-sm border border-pink-100 flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-transform">
+          <div class="w-12 h-12 rounded-xl flex items-center justify-center bg-rose-50">
+            <img id="expenseIcon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Ccircle cx='22' cy='22' r='22' fill='%23fce7f3'/%3E%3Ctext x='22' y='30' text-anchor='middle' font-size='24'%3E%F0%9F%93%89%3C/text%3E%3C/svg%3E" class="w-11 h-11 rounded-full object-cover">
+          </div>
+          <div class="text-left"><p class="font-semibold text-gray-800">记支出</p><p class="text-xs text-gray-500">点我开始记账</p></div>
+        </button>
+        <button onclick="openForm('income')" class="flex-1 bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 flex items-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-transform">
+          <div class="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-50">
+            <img id="incomeIcon" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Ccircle cx='22' cy='22' r='22' fill='%23d1fae5'/%3E%3Ctext x='22' y='30' text-anchor='middle' font-size='24'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" class="w-11 h-11 rounded-full object-cover">
+          </div>
+          <div class="text-left"><p class="font-semibold text-gray-800">记收入</p><p class="text-xs text-gray-500">记录每一份收获</p></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- 记录列表 -->
+    <div class="px-5 mt-6">
+      <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+        <span class="w-1 h-5 bg-gradient-to-b from-pink-400 to-purple-400 rounded-full"></span>记账记录
+      </h2>
+      <div id="recordsList"></div>
+    </div>
+
+    <div class="h-8"></div>
+
+    <!-- 底部导航 -->
+    <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-pink-100 px-6 py-2 pb-safe z-40">
+      <div class="flex items-center justify-around max-w-md mx-auto">
+        <button class="flex flex-col items-center gap-1 px-6 py-2 rounded-2xl text-pink-500 bg-pink-50">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          <span class="text-xs font-medium">首页</span>
+        </button>
+        <button onclick="showStats()" class="flex flex-col items-center gap-1 px-6 py-2 rounded-2xl text-gray-400 hover:text-pink-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          <span class="text-xs font-medium">统计</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 统计页 -->
+  <div id="statsPage" class="page min-h-screen pb-20">
+    <div class="relative w-full aspect-[16/9] max-h-[200px] overflow-hidden">
+      <img id="statsHeaderBg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='225'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f472b6'/%3E%3Cstop offset='100%25' stop-color='%23c084fc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='400' height='225' fill='url(%23g)'/%3E%3C/svg%3E" class="w-full h-full object-cover">
+      <div class="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent"></div>
+      <button onclick="showHome()" class="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-gray-700 hover:bg-white z-20">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      </button>
+      <div class="absolute inset-0 flex flex-col items-center justify-center">
+        <h1 class="text-xl font-bold text-white drop-shadow-lg">消费统计</h1>
+        <p id="statsTimeRange" class="text-white/80 text-sm mt-1 drop-shadow">全年的消费分析</p>
+      </div>
+    </div>
+
+    <div class="max-w-md mx-auto px-4 py-6 space-y-6">
+      <!-- 时间筛选 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-pink-100">
+        <div class="flex items-center gap-2 mb-3">
+          <svg class="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span class="text-sm font-medium text-gray-700">时间筛选</span>
+        </div>
+        <div class="flex gap-2 flex-wrap">
+          <select id="yearSelect" onchange="onYearChange()" class="px-3 py-2 bg-gray-50 rounded-xl text-sm border border-gray-200"></select>
+          <select id="monthSelect" onchange="onMonthChange()" class="px-3 py-2 bg-gray-50 rounded-xl text-sm border border-gray-200"></select>
+          <select id="daySelect" onchange="updateStats()" class="px-3 py-2 bg-gray-50 rounded-xl text-sm border border-gray-200 hidden"></select>
+        </div>
+      </div>
+
+      <!-- 支出概览 -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-pink-100">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-gray-500 mb-1">总支出</p>
+            <p id="totalExpense" class="text-3xl font-bold text-gray-800">¥0.00</p>
+          </div>
+          <div id="changeBadge" class="flex items-center gap-1 px-3 py-1 rounded-full bg-rose-50 text-rose-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg>
+            <span class="text-sm font-medium">0%</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-3 text-sm text-gray-500">
+          <span id="periodText">较上年</span>
+          <span class="text-gray-300">|</span>
+          <span id="expenseCount">0笔消费</span>
+          <span class="text-gray-300">|</span>
+          <span id="avgExpense">平均¥0.00/笔</span>
+        </div>
+      </div>
+
+      <!-- 饼图 -->
+      <div id="pieSection" class="bg-white rounded-2xl p-5 shadow-sm border border-pink-100 hidden">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-purple-400 to-indigo-400 flex items-center justify-center">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
+          </div>
+          <h2 class="font-semibold text-gray-800">分类占比</h2>
+        </div>
+        <div id="pieChart" class="w-full h-[200px]"></div>
+        <div id="pieLegend" class="mt-4 space-y-2"></div>
+      </div>
+
+      <!-- 趋势图 -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-pink-100">
+        <h2 class="font-semibold text-gray-800 mb-3">支出趋势</h2>
+        <div id="trendChart" class="w-full h-[200px]"></div>
+      </div>
+
+      <!-- TOP3 -->
+      <div id="topSection" class="bg-white rounded-2xl p-5 shadow-sm border border-pink-100 hidden">
+        <h2 class="font-semibold text-gray-800 mb-4">消费 TOP 3</h2>
+        <div id="topList" class="space-y-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加/编辑表单弹窗 -->
+  <div id="formModal" class="fixed inset-0 z-40 hidden">
+    <div class="absolute inset-0 bg-black/30 backdrop-blur-sm" onclick="closeForm()"></div>
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 max-h-[85vh] overflow-hidden animate-slide-up">
+      <div class="flex justify-center pt-3 pb-2"><div class="w-12 h-1.5 bg-gray-200 rounded-full"></div></div>
+      <div class="px-5 pb-4 flex items-center justify-between border-b border-gray-100">
+        <h3 id="formTitle" class="text-lg font-semibold">添加记录</h3>
+        <button onclick="closeForm()" class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="px-5 py-4 overflow-y-auto max-h-[calc(85vh-120px)]">
+        <div class="flex gap-2 mb-5">
+          <button id="expenseBtn" onclick="setFormType('expense')" class="flex-1 py-3 rounded-xl font-medium transition-all bg-gradient-to-r from-rose-400 to-pink-500 text-white shadow-md">支出</button>
+          <button id="incomeBtn" onclick="setFormType('income')" class="flex-1 py-3 rounded-xl font-medium transition-all bg-gray-100 text-gray-500 hover:bg-gray-200">收入</button>
+        </div>
+        <div class="mb-5">
+          <label class="text-sm text-gray-500 mb-2 block">金额</label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-2xl text-pink-400 font-medium">¥</span>
+            <input type="number" id="amountInput" placeholder="0.00" class="w-full pl-12 pr-4 py-4 text-2xl font-semibold bg-gray-50 rounded-2xl border-2 border-transparent focus:border-pink-300 focus:bg-white outline-none transition-all">
+          </div>
+        </div>
+        <div class="mb-5">
+          <label class="text-sm text-gray-500 mb-2 block">分类</label>
+          <div id="categoryGrid" class="grid grid-cols-4 gap-2"></div>
+        </div>
+        <div class="mb-5">
+          <label class="text-sm text-gray-500 mb-2 block">日期</label>
+          <input type="date" id="dateInput" class="w-full px-4 py-3 bg-gray-50 rounded-xl border-2 border-transparent focus:border-pink-300 focus:bg-white outline-none transition-all">
+        </div>
+        <div class="mb-6">
+          <label class="text-sm text-gray-500 mb-2 block">备注（可选）</label>
+          <textarea id="noteInput" placeholder="添加一些备注吧..." rows="2" class="w-full px-4 py-3 bg-gray-50 rounded-xl border-2 border-transparent focus:border-pink-300 focus:bg-white outline-none transition-all resize-none"></textarea>
+        </div>
+        <button id="submitBtn" onclick="submitForm()" class="w-full py-4 rounded-2xl font-semibold text-white shadow-lg transition-all bg-gray-300 cursor-not-allowed">确认添加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置弹窗 -->
+  <div id="settingsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeSettings()"></div>
+    <div class="relative bg-white rounded-3xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col animate-scale-in">
+      <div class="px-5 py-4 border-b border-pink-100 flex items-center justify-between bg-gradient-to-r from-pink-50 to-purple-50">
+        <div class="flex items-center gap-2">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <div><h3 class="text-lg font-semibold">个性化设置</h3><p class="text-xs text-gray-500">自定义你的小账本</p></div>
+        </div>
+        <button onclick="closeSettings()" class="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center text-gray-500 hover:text-pink-500">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        <!-- 主图片设置 -->
+        <div class="bg-gradient-to-r from-pink-50/50 to-purple-50/50 rounded-2xl p-4 border border-pink-100">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-pink-400 to-purple-400 flex items-center justify-center">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            </div>
+            <span class="font-medium text-gray-800">主图片设置</span>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center gap-4">
+              <div class="w-24 h-16 rounded-lg bg-gray-100 border-2 border-pink-200 overflow-hidden">
+                <img id="previewHeaderBg" src="" class="w-full h-full object-cover">
+              </div>
+              <div class="flex-1">
+                <p class="text-sm text-gray-600 mb-1">顶部背景图</p>
+                <label class="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-pink-100 text-pink-600 rounded-lg text-sm hover:bg-pink-200">
+                  <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload('headerBg', this)">
+                  更换
+                </label>
+              </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <div class="w-16 h-16 rounded-full bg-gray-100 border-2 border-pink-200 overflow-hidden">
+                <img id="previewAvatar" src="" class="w-full h-full object-cover">
+              </div>
+              <div class="flex-1">
+                <p class="text-sm text-gray-600 mb-1">头像</p>
+                <label class="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-pink-100 text-pink-600 rounded-lg text-sm hover:bg-pink-200">
+                  <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload('avatar', this)">
+                  更换
+                </label>
+              </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-full bg-gray-100 border-2 border-pink-200 overflow-hidden">
+                <img id="previewExpenseIcon" src="" class="w-full h-full object-cover">
+              </div>
+              <div class="flex-1">
+                <p class="text-sm text-gray-600 mb-1">支出按钮图标</p>
+                <label class="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-pink-100 text-pink-600 rounded-lg text-sm hover:bg-pink-200">
+                  <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload('expenseIcon', this)">
+                  更换
+                </label>
+              </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-full bg-gray-100 border-2 border-pink-200 overflow-hidden">
+                <img id="previewIncomeIcon" src="" class="w-full h-full object-cover">
+              </div>
+              <div class="flex-1">
+                <p class="text-sm text-gray-600 mb-1">收入按钮图标</p>
+                <label class="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 bg-pink-100 text-pink-600 rounded-lg text-sm hover:bg-pink-200">
+                  <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload('incomeIcon', this)">
+                  更换
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 支出分类图标 -->
+        <div class="bg-gradient-to-r from-rose-50/50 to-pink-50/50 rounded-2xl p-4 border border-rose-100">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-rose-400 to-pink-400 flex items-center justify-center">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg>
+            </div>
+            <span class="font-medium text-gray-800">支出分类图标</span>
+          </div>
+          <p class="text-xs text-gray-500 mb-3">点击分类上传自定义图标</p>
+          <div id="expenseIconGrid" class="grid grid-cols-4 gap-2"></div>
+        </div>
+
+        <!-- 收入分类图标 -->
+        <div class="bg-gradient-to-r from-emerald-50/50 to-teal-50/50 rounded-2xl p-4 border border-emerald-100">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-emerald-400 to-teal-400 flex items-center justify-center">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            </div>
+            <span class="font-medium text-gray-800">收入分类图标</span>
+          </div>
+          <p class="text-xs text-gray-500 mb-3">点击分类上传自定义图标</p>
+          <div id="incomeIconGrid" class="grid grid-cols-4 gap-2"></div>
+        </div>
+
+        <!-- 重置按钮 -->
+        <button onclick="resetAll()" class="w-full py-3 bg-white border-2 border-pink-200 text-pink-500 rounded-2xl font-medium flex items-center justify-center gap-2 hover:bg-pink-50">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          恢复所有默认设置
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 图片裁剪弹窗 -->
+  <div id="cropModal" class="crop-overlay hidden">
+    <div class="bg-white rounded-3xl w-[90vw] max-w-md overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-pink-50 to-purple-50">
+        <h3 class="text-lg font-semibold">裁剪图片</h3>
+        <button onclick="closeCrop()" class="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="crop-container" id="cropContainer">
+        <img id="cropImage" class="crop-image" src="">
+        <div class="crop-frame" id="cropFrame"></div>
+      </div>
+      <div class="p-5 border-t border-gray-100">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="text-sm text-gray-500">缩放</span>
+          <input type="range" id="zoomRange" min="0.1" max="2" step="0.05" value="1" class="flex-1" oninput="onZoomChange()">
+        </div>
+        <div class="flex gap-3">
+          <button onclick="closeCrop()" class="flex-1 py-3 bg-gray-100 rounded-2xl font-medium text-gray-600 hover:bg-gray-200">取消</button>
+          <button onclick="resetCropPosition()" class="flex-1 py-3 bg-pink-50 border-2 border-pink-200 text-pink-500 rounded-2xl font-medium hover:bg-pink-100">重置位置</button>
+          <button onclick="confirmCrop()" class="flex-1 py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white rounded-2xl font-medium hover:shadow-lg">确认</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Storage Keys
+    const STORAGE_KEYS = {
+      records: 'anime-account-book-records',
+      images: 'anime-account-book-custom',
+      expenseIcons: 'anime-account-book-expense-icons',
+      incomeIcons: 'anime-account-book-income-icons'
+    };
+
+    // Default SVG images
+    const DEFAULTS = {
+      headerBg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='225'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23f472b6'/%3E%3Cstop offset='100%25' stop-color='%23c084fc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='400' height='225' fill='url(%23g)'/%3E%3C/svg%3E",
+      avatar: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23fce7f3'/%3E%3Ctext x='50' y='65' text-anchor='middle' font-size='50'%3E%F0%9F%90%B1%3C/text%3E%3C/svg%3E",
+      expenseIcon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Ccircle cx='22' cy='22' r='22' fill='%23fce7f3'/%3E%3Ctext x='22' y='30' text-anchor='middle' font-size='24'%3E%F0%9F%93%89%3C/text%3E%3C/svg%3E",
+      incomeIcon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Ccircle cx='22' cy='22' r='22' fill='%23d1fae5'/%3E%3Ctext x='22' y='30' text-anchor='middle' font-size='24'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E"
+    };
+
+    // Categories
+    const CATEGORIES = {
+      expense: [
+        { id: 'food', label: '餐饮', emoji: '🍜', color: 'bg-orange-100' },
+        { id: 'transport', label: '交通', emoji: '🚌', color: 'bg-blue-100' },
+        { id: 'shopping', label: '购物', emoji: '🛍️', color: 'bg-pink-100' },
+        { id: 'entertainment', label: '娱乐', emoji: '🎮', color: 'bg-purple-100' },
+        { id: 'health', label: '医疗', emoji: '💊', color: 'bg-red-100' },
+        { id: 'beauty', label: '美容', emoji: '💅', color: 'bg-rose-100' },
+        { id: 'education', label: '教育', emoji: '📚', color: 'bg-indigo-100' },
+        { id: 'other', label: '其他', emoji: '📦', color: 'bg-gray-100' }
+      ],
+      income: [
+        { id: 'salary', label: '工资', emoji: '💰', color: 'bg-emerald-100' },
+        { id: 'bonus', label: '奖金', emoji: '🎁', color: 'bg-amber-100' },
+        { id: 'gift', label: '红包', emoji: '🧧', color: 'bg-red-100' },
+        { id: 'investment', label: '投资', emoji: '📈', color: 'bg-teal-100' },
+        { id: 'other', label: '其他', emoji: '💎', color: 'bg-gray-100' }
+      ]
+    };
+
+    // State
+    let records = [];
+    let customImages = {};
+    let expenseIcons = {};
+    let incomeIcons = {};
+    let currentFormType = 'expense';
+    let editingRecord = null;
+    let selectedCategory = '';
+    let pieChart = null;
+    let trendChart = null;
+
+    // Crop state
+    let cropImageSrc = '';
+    let cropKey = '';
+    let cropType = '';
+    let cropLabel = '';
+    let cropZoom = 1;
+    let baseCropZoom = 1; // 基准缩放比例
+    let cropOffset = { x: 0, y: 0 };
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      renderHome();
+      initCropEvents();
+    });
+
+    // Load data from localStorage
+    function loadData() {
+      try {
+        const r = localStorage.getItem(STORAGE_KEYS.records);
+        if (r) records = JSON.parse(r);
+        const i = localStorage.getItem(STORAGE_KEYS.images);
+        if (i) customImages = JSON.parse(i);
+        const ei = localStorage.getItem(STORAGE_KEYS.expenseIcons);
+        if (ei) expenseIcons = JSON.parse(ei);
+        const ii = localStorage.getItem(STORAGE_KEYS.incomeIcons);
+        if (ii) incomeIcons = JSON.parse(ii);
+      } catch (e) {
+        console.error('Load error:', e);
+      }
+    }
+
+    // Save data
+    function saveRecords() {
+      localStorage.setItem(STORAGE_KEYS.records, JSON.stringify(records));
+    }
+
+    function saveImages() {
+      localStorage.setItem(STORAGE_KEYS.images, JSON.stringify(customImages));
+    }
+
+    function saveExpenseIcons() {
+      localStorage.setItem(STORAGE_KEYS.expenseIcons, JSON.stringify(expenseIcons));
+    }
+
+    function saveIncomeIcons() {
+      localStorage.setItem(STORAGE_KEYS.incomeIcons, JSON.stringify(incomeIcons));
+    }
+
+    // Helpers
+    function formatMoney(amount) {
+      return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2 }).format(amount);
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diff = now.getTime() - date.getTime();
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      if (days === 0) return '今天';
+      if (days === 1) return '昨天';
+      if (days < 7) return `${days}天前`;
+      return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
+
+    function generateId() {
+      return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    }
+
+    // Render Home
+    function renderHome() {
+      // Update images
+      document.getElementById('headerBg').src = customImages.headerBg || DEFAULTS.headerBg;
+      document.getElementById('avatarImg').src = customImages.avatar || DEFAULTS.avatar;
+      document.getElementById('expenseIcon').src = customImages.expenseIcon || DEFAULTS.expenseIcon;
+      document.getElementById('incomeIcon').src = customImages.incomeIcon || DEFAULTS.incomeIcon;
+
+      // Calculate stats
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      let balance = 0, monthIncome = 0, monthExpense = 0;
+      records.forEach(r => {
+        if (r.type === 'income') {
+          balance += r.amount;
+          if (new Date(r.date) >= monthStart) monthIncome += r.amount;
+        } else {
+          balance -= r.amount;
+          if (new Date(r.date) >= monthStart) monthExpense += r.amount;
+        }
+      });
+
+      document.getElementById('balanceText').textContent = formatMoney(balance);
+      document.getElementById('monthIncome').textContent = formatMoney(monthIncome);
+      document.getElementById('monthExpense').textContent = formatMoney(monthExpense);
+
+      // Render records
+      const listEl = document.getElementById('recordsList');
+      if (records.length === 0) {
+        listEl.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-pink-50 animate-fade-in">
+            <div class="text-5xl mb-4">📒</div>
+            <p class="text-gray-500">还没有记录哦</p>
+            <p class="text-sm text-pink-400 mt-1">点击上方按钮开始记账吧~</p>
+          </div>`;
+        return;
+      }
+
+      // Group by date
+      const groups = {};
+      records.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(r => {
+        if (!groups[r.date]) groups[r.date] = [];
+        groups[r.date].push(r);
+      });
+
+      listEl.innerHTML = Object.entries(groups).map(([date, items]) => `
+        <div class="animate-fade-in">
+          <p class="text-sm text-gray-500 mb-2 px-1">${formatDate(date)}</p>
+          <div class="space-y-2">
+            ${items.map(r => {
+              const cats = r.type === 'expense' ? CATEGORIES.expense : CATEGORIES.income;
+              const cat = cats.find(c => c.id === r.category);
+              const icon = r.type === 'expense' ? (expenseIcons[cat?.label] || cat?.emoji) : (incomeIcons[cat?.label] || cat?.emoji);
+              const isCustom = icon && (icon.startsWith('data:') || icon.startsWith('http'));
+              return `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-50 flex items-center gap-3 animate-fade-in">
+                  <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isCustom ? 'bg-gray-100' : (cat?.color || 'bg-gray-100')}">
+                    ${isCustom ? `<img src="${icon}" class="w-8 h-8 rounded-full object-cover">` : `<span>${icon || '📦'}</span>`}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-gray-800 truncate">${cat?.label || r.category}</p>
+                    ${r.note ? `<p class="text-sm text-gray-500 truncate">${r.note}</p>` : ''}
+                  </div>
+                  <div class="text-right">
+                    <p class="font-semibold ${r.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}">${r.type === 'income' ? '+' : '-'}${formatMoney(r.amount)}</p>
+                  </div>
+                  <div class="flex gap-1">
+                    <button onclick="editRecord('${r.id}')" class="p-2 rounded-xl hover:bg-pink-50 text-gray-400 hover:text-pink-500">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button onclick="deleteRecord('${r.id}')" class="p-2 rounded-xl hover:bg-rose-50 text-gray-400 hover:text-rose-500">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`).join('');
+    }
+
+    // Form functions
+    function openForm(type, editId = null) {
+      currentFormType = type;
+      editingRecord = editId ? records.find(r => r.id === editId) : null;
+      selectedCategory = editingRecord ? editingRecord.category : '';
+
+      document.getElementById('formTitle').textContent = editingRecord ? '编辑记录' : '添加记录';
+      document.getElementById('amountInput').value = editingRecord ? editingRecord.amount : '';
+      document.getElementById('noteInput').value = editingRecord ? editingRecord.note : '';
+      document.getElementById('dateInput').value = editingRecord ? editingRecord.date : new Date().toISOString().split('T')[0];
+      document.getElementById('submitBtn').textContent = editingRecord ? '保存修改' : '确认添加';
+
+      updateFormTypeUI();
+      renderCategoryGrid();
+      updateSubmitBtn();
+
+      document.getElementById('formModal').classList.remove('hidden');
+    }
+
+    function closeForm() {
+      document.getElementById('formModal').classList.add('hidden');
+      editingRecord = null;
+      selectedCategory = '';
+    }
+
+    function setFormType(type) {
+      currentFormType = type;
+      selectedCategory = '';
+      updateFormTypeUI();
+      renderCategoryGrid();
+      updateSubmitBtn();
+    }
+
+    function updateFormTypeUI() {
+      const expBtn = document.getElementById('expenseBtn');
+      const incBtn = document.getElementById('incomeBtn');
+      if (currentFormType === 'expense') {
+        expBtn.className = 'flex-1 py-3 rounded-xl font-medium transition-all bg-gradient-to-r from-rose-400 to-pink-500 text-white shadow-md';
+        incBtn.className = 'flex-1 py-3 rounded-xl font-medium transition-all bg-gray-100 text-gray-500 hover:bg-gray-200';
+      } else {
+        expBtn.className = 'flex-1 py-3 rounded-xl font-medium transition-all bg-gray-100 text-gray-500 hover:bg-gray-200';
+        incBtn.className = 'flex-1 py-3 rounded-xl font-medium transition-all bg-gradient-to-r from-emerald-400 to-teal-500 text-white shadow-md';
+      }
+    }
+
+    function renderCategoryGrid() {
+      const cats = currentFormType === 'expense' ? CATEGORIES.expense : CATEGORIES.income;
+      const icons = currentFormType === 'expense' ? expenseIcons : incomeIcons;
+      document.getElementById('categoryGrid').innerHTML = cats.map(c => {
+        const icon = icons[c.label] || c.emoji;
+        const isCustom = icon && (icon.startsWith('data:') || icon.startsWith('http'));
+        return `
+          <button onclick="selectCategory('${c.id}')" class="p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${selectedCategory === c.id ? 'bg-gradient-to-br from-pink-100 to-purple-100 border-2 border-pink-400 scale-95' : 'bg-gray-50 border-2 border-transparent hover:bg-gray-100'}">
+            <span class="text-2xl">${isCustom ? `<img src="${icon}" class="w-8 h-8 rounded-full object-cover">` : icon}</span>
+            <span class="text-xs text-gray-800">${c.label}</span>
+          </button>`;
+      }).join('');
+    }
+
+    function selectCategory(id) {
+      selectedCategory = id;
+      renderCategoryGrid();
+      updateSubmitBtn();
+    }
+
+    function updateSubmitBtn() {
+      const amount = document.getElementById('amountInput').value;
+      const btn = document.getElementById('submitBtn');
+      if (amount && selectedCategory) {
+        btn.className = `w-full py-4 rounded-2xl font-semibold text-white shadow-lg transition-all ${currentFormType === 'expense' ? 'bg-gradient-to-r from-rose-400 to-pink-500 hover:shadow-xl' : 'bg-gradient-to-r from-emerald-400 to-teal-500 hover:shadow-xl'}`;
+        btn.disabled = false;
+      } else {
+        btn.className = 'w-full py-4 rounded-2xl font-semibold text-white shadow-lg transition-all bg-gray-300 cursor-not-allowed';
+        btn.disabled = true;
+      }
+    }
+
+    document.getElementById('amountInput').addEventListener('input', updateSubmitBtn);
+
+    function submitForm() {
+      const amount = parseFloat(document.getElementById('amountInput').value);
+      const note = document.getElementById('noteInput').value;
+      const date = document.getElementById('dateInput').value;
+      if (!amount || !selectedCategory) return;
+
+      const record = {
+        id: editingRecord ? editingRecord.id : generateId(),
+        type: currentFormType,
+        amount,
+        category: selectedCategory,
+        note,
+        date,
+        createdAt: editingRecord ? editingRecord.createdAt : Date.now()
+      };
+
+      if (editingRecord) {
+        records = records.map(r => r.id === record.id ? record : r);
+      } else {
+        records.push(record);
+      }
+
+      saveRecords();
+      renderHome();
+      closeForm();
+    }
+
+    function editRecord(id) {
+      openForm(null, id);
+    }
+
+    function deleteRecord(id) {
+      if (confirm('确定要删除这条记录吗？')) {
+        records = records.filter(r => r.id !== id);
+        saveRecords();
+        renderHome();
+      }
+    }
+
+    // Settings
+    function openSettings() {
+      document.getElementById('previewHeaderBg').src = customImages.headerBg || DEFAULTS.headerBg;
+      document.getElementById('previewAvatar').src = customImages.avatar || DEFAULTS.avatar;
+      document.getElementById('previewExpenseIcon').src = customImages.expenseIcon || DEFAULTS.expenseIcon;
+      document.getElementById('previewIncomeIcon').src = customImages.incomeIcon || DEFAULTS.incomeIcon;
+
+      renderIconGrids();
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function renderIconGrids() {
+      document.getElementById('expenseIconGrid').innerHTML = CATEGORIES.expense.map(c => {
+        const icon = expenseIcons[c.label];
+        return `
+          <div class="flex flex-col items-center gap-1">
+            <label class="cursor-pointer">
+              <input type="file" accept="image/*" class="hidden" onchange="handleCategoryIconUpload('expense', '${c.label}', this)">
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center ${icon ? 'bg-gray-100' : c.color} hover:scale-105 active:scale-95 transition-transform">
+                ${icon ? `<img src="${icon}" class="w-10 h-10 rounded-full object-cover">` : `<span class="text-2xl">${c.emoji}</span>`}
+              </div>
+            </label>
+            <span class="text-[10px] text-gray-500">${c.label}</span>
+            ${icon ? `<button onclick="resetCategoryIcon('expense', '${c.label}')" class="text-[9px] text-pink-500 hover:underline">恢复</button>` : ''}
+          </div>`;
+      }).join('');
+
+      document.getElementById('incomeIconGrid').innerHTML = CATEGORIES.income.map(c => {
+        const icon = incomeIcons[c.label];
+        return `
+          <div class="flex flex-col items-center gap-1">
+            <label class="cursor-pointer">
+              <input type="file" accept="image/*" class="hidden" onchange="handleCategoryIconUpload('income', '${c.label}', this)">
+              <div class="w-14 h-14 rounded-xl flex items-center justify-center ${icon ? 'bg-gray-100' : c.color} hover:scale-105 active:scale-95 transition-transform">
+                ${icon ? `<img src="${icon}" class="w-10 h-10 rounded-full object-cover">` : `<span class="text-2xl">${c.emoji}</span>`}
+              </div>
+            </label>
+            <span class="text-[10px] text-gray-500">${c.label}</span>
+            ${icon ? `<button onclick="resetCategoryIcon('income', '${c.label}')" class="text-[9px] text-emerald-500 hover:underline">恢复</button>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    // Image handling
+    function handleImageUpload(key, input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        cropImageSrc = e.target.result;
+        cropKey = key;
+        cropType = '';
+        cropLabel = '';
+        openCrop(key === 'headerBg' ? 16/9 : 1);
+      };
+      reader.readAsDataURL(file);
+      input.value = '';
+    }
+
+    function handleCategoryIconUpload(type, label, input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        cropImageSrc = e.target.result;
+        cropKey = '';
+        cropType = type;
+        cropLabel = label;
+        openCrop(1);
+      };
+      reader.readAsDataURL(file);
+      input.value = '';
+    }
+
+    // Crop functions
+    function openCrop(aspectRatio) {
+      const img = document.getElementById('cropImage');
+      document.getElementById('cropModal').classList.remove('hidden');
+      document.getElementById('zoomRange').value = 1;
+      cropZoom = 1;
+      baseCropZoom = 1;
+      cropOffset = { x: 0, y: 0 };
+      img.style.transform = 'none';
+      img.src = cropImageSrc;
+      
+      // Wait for image to load first
+      if (img.complete && img.naturalWidth > 0) {
+        updateCropFrame(aspectRatio);
+        setupCropImage();
+      } else {
+        img.onload = () => {
+          setupCropImage();
+        };
+      }
+    }
+
+    function setupCropImage() {
+      const img = document.getElementById('cropImage');
+      const frame = document.getElementById('cropFrame');
+      if (!img || !frame || !img.naturalWidth) return;
+
+      const imgW = img.naturalWidth;
+      const imgH = img.naturalHeight;
+      const frameW = frame.offsetWidth;
+      const frameH = frame.offsetHeight;
+      const frameX = parseFloat(frame.style.left);
+      const frameY = parseFloat(frame.style.top);
+
+      // Scale so image width fills frame width
+      baseCropZoom = frameW / imgW;
+      cropZoom = baseCropZoom;
+
+      // Position image: left edge aligned, vertically centered
+      cropOffset.x = frameX;
+      cropOffset.y = frameY + (frameH - imgH * cropZoom) / 2;
+
+      updateCropImage();
+    }
+
+    function updateCropImage() {
+      const img = document.getElementById('cropImage');
+      if (!img) return;
+      img.style.transform = "translate(" + cropOffset.x + "px, " + cropOffset.y + "px) scale(" + cropZoom + ")";
+    }
+
+    function resetCropPosition() {
+      setupCropImage();
+      document.getElementById('zoomRange').value = baseCropZoom;
+    }
+
+    function onZoomChange() {
+      const newZoom = parseFloat(document.getElementById('zoomRange').value);
+      // Scale position proportionally
+      const ratio = newZoom / cropZoom;
+      cropOffset.x = cropOffset.x * ratio;
+      cropOffset.y = cropOffset.y * ratio;
+      cropZoom = newZoom;
+      updateCropImage();
+    }
+
+    function updateCropFrame(aspectRatio) {
+      const container = document.getElementById('cropContainer');
+      const frame = document.getElementById('cropFrame');
+      const img = document.getElementById('cropImage');
+
+      const containerW = container.offsetWidth;
+      const containerH = container.offsetHeight;
+
+      let frameW, frameH;
+      if (aspectRatio > 1) {
+        frameW = containerW * 0.8;
+        frameH = frameW / aspectRatio;
+      } else {
+        frameH = containerH * 0.6;
+        frameW = frameH * aspectRatio;
+      }
+
+      frame.style.width = frameW + 'px';
+      frame.style.height = frameH + 'px';
+      frame.style.left = (containerW - frameW) / 2 + 'px';
+      frame.style.top = (containerH - frameH) / 2 + 'px';
+
+      updateCropImage();
+    }
+
+    function initCropEvents() {
+      const container = document.getElementById('cropContainer');
+
+      container.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        dragStart = { x: e.clientX - cropOffset.x, y: e.clientY - cropOffset.y };
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        cropOffset.x = e.clientX - dragStart.x;
+        cropOffset.y = e.clientY - dragStart.y;
+        updateCropImage();
+      });
+
+      document.addEventListener('mouseup', () => isDragging = false);
+
+      // Touch events
+      container.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        const touch = e.touches[0];
+        dragStart = { x: touch.clientX - cropOffset.x, y: touch.clientY - cropOffset.y };
+      });
+
+      container.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        cropOffset.x = touch.clientX - dragStart.x;
+        cropOffset.y = touch.clientY - dragStart.y;
+        updateCropImage();
+      });
+
+      container.addEventListener('touchend', () => isDragging = false);
+    }
+
+    function closeCrop() {
+      document.getElementById('cropModal').classList.add('hidden');
+      cropImageSrc = '';
+    }
+
+    function confirmCrop() {
+      const frame = document.getElementById('cropFrame');
+      const img = document.getElementById('cropImage');
+      const container = document.getElementById('cropContainer');
+
+      const frameRect = frame.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const imgRect = img.getBoundingClientRect();
+
+      // Calculate crop coordinates
+      const scaleX = img.naturalWidth / imgRect.width;
+      const scaleY = img.naturalHeight / imgRect.height;
+
+      const cropX = (frameRect.left - imgRect.left) * scaleX;
+      const cropY = (frameRect.top - imgRect.top) * scaleY;
+      const cropW = frameRect.width * scaleX;
+      const cropH = frameRect.height * scaleY;
+
+      // Create canvas and crop
+      const canvas = document.createElement('canvas');
+      canvas.width = cropW;
+      canvas.height = cropH;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+      const croppedImage = canvas.toDataURL('image/jpeg', 0.9);
+
+      if (cropKey) {
+        customImages[cropKey] = croppedImage;
+        saveImages();
+      } else if (cropType && cropLabel) {
+        if (cropType === 'expense') {
+          expenseIcons[cropLabel] = croppedImage;
+          saveExpenseIcons();
+        } else {
+          incomeIcons[cropLabel] = croppedImage;
+          saveIncomeIcons();
+        }
+      }
+
+      closeCrop();
+      renderHome();
+      if (!cropKey) renderIconGrids();
+    }
+
+    function resetCategoryIcon(type, label) {
+      if (type === 'expense') {
+        delete expenseIcons[label];
+        saveExpenseIcons();
+      } else {
+        delete incomeIcons[label];
+        saveIncomeIcons();
+      }
+      renderIconGrids();
+      renderHome();
+    }
+
+    function resetAll() {
+      if (confirm('确定要恢复所有默认设置吗？所有自定义图片将被清除。')) {
+        customImages = {};
+        expenseIcons = {};
+        incomeIcons = {};
+        saveImages();
+        saveExpenseIcons();
+        saveIncomeIcons();
+        renderHome();
+        closeSettings();
+      }
+    }
+
+    // Statistics Page
+    let statsYear = new Date().getFullYear();
+    let statsMonth = new Date().getMonth() + 1;
+    let statsDay = null;
+
+    function showStats() {
+      document.getElementById('homePage').classList.remove('active');
+      document.getElementById('statsPage').classList.add('active');
+      document.getElementById('statsHeaderBg').src = customImages.headerBg || DEFAULTS.headerBg;
+      initStats();
+    }
+
+    function showHome() {
+      document.getElementById('statsPage').classList.remove('active');
+      document.getElementById('homePage').classList.add('active');
+      if (pieChart) { pieChart.dispose(); pieChart = null; }
+      if (trendChart) { trendChart.dispose(); trendChart = null; }
+    }
+
+    function initStats() {
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+
+      // Year options
+      const years = new Set([currentYear]);
+      records.forEach(r => years.add(new Date(r.date).getFullYear()));
+      const yearSelect = document.getElementById('yearSelect');
+      yearSelect.innerHTML = Array.from(years).sort((a, b) => b - a).map(y => `<option value="${y}" ${y === statsYear ? 'selected' : ''}>${y}年</option>`).join('');
+
+      // Month options
+      const maxMonth = statsYear === currentYear ? currentMonth : 12;
+      const monthSelect = document.getElementById('monthSelect');
+      monthSelect.innerHTML = `<option value="">全年</option>` + Array.from({ length: maxMonth }, (_, i) => i + 1).map(m => `<option value="${m}" ${m === statsMonth ? 'selected' : ''}>${m}月</option>`).join('');
+
+      // Day options
+      const daySelect = document.getElementById('daySelect');
+      if (statsMonth) {
+        const daysInMonth = new Date(statsYear, statsMonth, 0).getDate();
+        const maxDay = statsYear === currentYear && statsMonth === currentMonth ? new Date().getDate() : daysInMonth;
+        daySelect.classList.remove('hidden');
+        daySelect.innerHTML = `<option value="">整月</option>` + Array.from({ length: maxDay }, (_, i) => i + 1).map(d => `<option value="${d}" ${d === statsDay ? 'selected' : ''}>${d}日</option>`).join('');
+      } else {
+        daySelect.classList.add('hidden');
+        statsDay = null;
+      }
+
+      updateStats();
+    }
+
+    function onYearChange() {
+      statsYear = parseInt(document.getElementById('yearSelect').value);
+      statsMonth = new Date().getMonth() + 1;
+      statsDay = null;
+      initStats();
+    }
+
+    function onMonthChange() {
+      const val = document.getElementById('monthSelect').value;
+      statsMonth = val ? parseInt(val) : null;
+      statsDay = null;
+      initStats();
+    }
+
+    function updateStats() {
+      const val = document.getElementById('daySelect').value;
+      statsDay = val ? parseInt(val) : null;
+
+      const filtered = records.filter(r => {
+        const d = new Date(r.date);
+        if (d.getFullYear() !== statsYear) return false;
+        if (statsMonth && d.getMonth() + 1 !== statsMonth) return false;
+        if (statsDay && d.getDate() !== statsDay) return false;
+        return true;
+      });
+
+      // Stats
+      let totalExpense = 0, expenseCount = 0, prevExpense = 0;
+      filtered.forEach(r => { if (r.type === 'expense') { totalExpense += r.amount; expenseCount++; } });
+
+      // Previous period
+      if (statsMonth) {
+        const prevMonth = statsMonth === 1 ? 12 : statsMonth - 1;
+        const prevYear = statsMonth === 1 ? statsYear - 1 : statsYear;
+        records.forEach(r => {
+          if (r.type !== 'expense') return;
+          const d = new Date(r.date);
+          if (d.getFullYear() === prevYear && d.getMonth() + 1 === prevMonth) prevExpense += r.amount;
+        });
+      } else {
+        records.forEach(r => {
+          if (r.type !== 'expense') return;
+          if (new Date(r.date).getFullYear() === statsYear - 1) prevExpense += r.amount;
+        });
+      }
+
+      const change = prevExpense > 0 ? ((totalExpense - prevExpense) / prevExpense) * 100 : 0;
+
+      document.getElementById('statsTimeRange').textContent = `${statsDay ? statsMonth + '月' + statsDay + '日' : statsMonth ? statsMonth + '月' : '全年'}的消费分析`;
+      document.getElementById('totalExpense').textContent = formatMoney(totalExpense);
+      document.getElementById('expenseCount').textContent = expenseCount + '笔消费';
+      document.getElementById('avgExpense').textContent = '平均' + formatMoney(expenseCount > 0 ? totalExpense / expenseCount : 0) + '/笔';
+      document.getElementById('periodText').textContent = statsDay ? '较昨日' : statsMonth ? '较上月' : '较上年';
+
+      const changeBadge = document.getElementById('changeBadge');
+      if (change > 0) {
+        changeBadge.className = 'flex items-center gap-1 px-3 py-1 rounded-full bg-rose-50 text-rose-500';
+        changeBadge.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/></svg><span class="text-sm font-medium">${change.toFixed(1)}%</span>`;
+      } else {
+        changeBadge.className = 'flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-500';
+        changeBadge.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg><span class="text-sm font-medium">${Math.abs(change).toFixed(1)}%</span>`;
+      }
+
+      // Category data
+      const catMap = new Map();
+      filtered.forEach(r => { if (r.type === 'expense') catMap.set(r.category, (catMap.get(r.category) || 0) + r.amount); });
+      const catData = Array.from(catMap.entries()).map(([id, amount]) => {
+        const cat = CATEGORIES.expense.find(c => c.id === id);
+        return { id, label: cat?.label || id, emoji: cat?.emoji || '📦', color: cat?.color || 'bg-gray-100', amount };
+      }).sort((a, b) => b.amount - a.amount);
+
+      const total = catData.reduce((s, c) => s + c.amount, 0);
+      catData.forEach(c => c.percentage = total > 0 ? (c.amount / total) * 100 : 0);
+
+      // Pie Chart
+      const pieSection = document.getElementById('pieSection');
+      if (catData.length > 0) {
+        pieSection.classList.remove('hidden');
+        if (pieChart) pieChart.dispose();
+        pieChart = echarts.init(document.getElementById('pieChart'));
+        pieChart.setOption({
+          tooltip: { trigger: 'item', formatter: '{b}: ¥{c} ({d}%)' },
+          series: [{ type: 'pie', radius: ['40%', '70%'], itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 }, label: { show: false }, data: catData.map(c => ({ value: c.amount, name: c.label })) }],
+          color: ['#f472b6', '#c084fc', '#fb7185', '#34d399', '#fbbf24', '#60a5fa', '#a78bfa', '#9ca3af']
+        });
+
+        document.getElementById('pieLegend').innerHTML = catData.slice(0, 5).map(c => `
+          <div class="flex items-center justify-between text-sm">
+            <div class="flex items-center gap-2"><span class="text-lg">${c.emoji}</span><span class="text-gray-700">${c.label}</span></div>
+            <div class="flex items-center gap-3"><span class="text-gray-500">${c.percentage.toFixed(1)}%</span><span class="font-medium text-gray-800">${formatMoney(c.amount)}</span></div>
+          </div>`).join('');
+      } else {
+        pieSection.classList.add('hidden');
+      }
+
+      // Trend Chart
+      let trendData = [];
+      if (statsDay) {
+        trendData = [{ label: `${statsMonth}月${statsDay}日`, amount: totalExpense }];
+      } else if (statsMonth) {
+        const daysInMonth = new Date(statsYear, statsMonth, 0).getDate();
+        for (let i = 1; i <= daysInMonth; i++) trendData.push({ label: `${i}日`, amount: 0 });
+        filtered.forEach(r => { if (r.type === 'expense') { const day = new Date(r.date).getDate() - 1; if (trendData[day]) trendData[day].amount += r.amount; } });
+      } else {
+        for (let i = 1; i <= 12; i++) trendData.push({ label: `${i}月`, amount: 0 });
+        filtered.forEach(r => { if (r.type === 'expense') { const month = new Date(r.date).getMonth(); trendData[month].amount += r.amount; } });
+      }
+
+      if (trendChart) trendChart.dispose();
+      trendChart = echarts.init(document.getElementById('trendChart'));
+      trendChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+        xAxis: { type: 'category', boundaryGap: false, data: trendData.map(d => d.label), axisLine: { lineStyle: { color: '#e5e7eb' } }, axisLabel: { color: '#9ca3af' } },
+        yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: '#f3f4f6' } }, axisLabel: { color: '#9ca3af', formatter: v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : v } },
+        series: [{ type: 'line', smooth: true, data: trendData.map(d => d.amount), areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(244, 114, 182, 0.3)' }, { offset: 1, color: 'rgba(244, 114, 182, 0.05)' }] } }, lineStyle: { color: '#f472b6', width: 3 }, itemStyle: { color: '#f472b6' } }]
+      });
+
+      // Top 3
+      const topSection = document.getElementById('topSection');
+      if (catData.length > 0) {
+        topSection.classList.remove('hidden');
+        document.getElementById('topList').innerHTML = catData.slice(0, 3).map((c, i) => `
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-lg ${c.color}"><span>${c.emoji}</span></div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between mb-1"><span class="font-medium text-gray-800">${c.label}</span><span class="text-sm text-gray-600">${formatMoney(c.amount)}</span></div>
+              <div class="h-2 bg-gray-100 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-pink-400 to-purple-400 rounded-full" style="width: ${c.percentage}%"></div></div>
+            </div>
+            <span class="text-xs text-gray-400 w-8 text-right">#${i + 1}</span>
+          </div>`).join('');
+      } else {
+        topSection.classList.add('hidden');
+      }
+    }
+
+    // Window resize
+    window.addEventListener('resize', () => {
+      if (pieChart) pieChart.resize();
+      if (trendChart) trendChart.resize();
+    });
+  </script>
+</body>
+</html>
